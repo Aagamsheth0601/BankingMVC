@@ -5,37 +5,6 @@
     <title>New Transaction</title>
  
     <script>
-        function fetchReceiverAccount() {
-            var receiverUserId = document.getElementById("receiverUserId").value;
-            if (receiverUserId.trim() === "") {
-                document.getElementById("receiverAccount").value = "";
-                document.getElementById("receiverAccountInfo").style.display = "none";
-                return;
-            }
-
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "GetReceiverAccountServlet?receiverUserId=" + receiverUserId, true);
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4 && xhr.status === 200) {
-                    var response = xhr.responseText.trim();
-                    if (response === "Not Found") {
-                        document.getElementById("receiverAccount").value = "";
-                        document.getElementById("receiverAccountInfo").style.display = "none";
-                        alert("Receiver account not found. Please check the email ID.");
-                    } else if (response === "Error") {
-                        document.getElementById("receiverAccount").value = "";
-                        document.getElementById("receiverAccountInfo").style.display = "none";
-                        alert("Error retrieving account information. Please try again.");
-                    } else {
-                        document.getElementById("receiverAccount").value = response;
-                        document.getElementById("receiverAccountInfo").style.display = "block";
-                        document.getElementById("receiverAccountDisplay").innerHTML = response;
-                    }
-                }
-            };
-            xhr.send();
-        }
-
         function validateForm() {
             var transactionType = document.getElementById("transactionType").value;
             var amount = document.getElementById("amount").value;
@@ -58,14 +27,9 @@
             }
             
             if (transactionType === "BANK_TRANSFER") {
-                var receiverAccount = document.getElementById("receiverAccount").value;
-                if (receiverAccount === "") {
-                    alert("Please select a valid receiver account.");
-                    return false;
-                }
-                
-                if (senderAccount === receiverAccount) {
-                    alert("Cannot transfer to your own account.");
+                var receiverUserId = document.getElementById("receiverUserId").value;
+                if (receiverUserId === "") {
+                    alert("Please enter receiver's email ID.");
                     return false;
                 }
             }
@@ -82,8 +46,7 @@
             } else {
                 receiverFields.style.display = "none";
                 document.getElementById("receiverUserId").value = "";
-                document.getElementById("receiverAccount").value = "";
-                document.getElementById("receiverAccountInfo").style.display = "none";
+                document.getElementById("receiverInfo").style.display = "none";
             }
         }
     </script>
@@ -121,6 +84,7 @@
             <p><strong>Available Balance:</strong> <span class="account-balance">$<%= senderBalance %></span></p>
         </div>
 
+        <!-- Step 1: Initial form to select transaction type -->
         <form action="${pageContext.request.contextPath}/new-transaction" method="post" onsubmit="return validateForm()">
             <label for="transactionType">Transaction Type:</label>
             <select name="transactionType" id="transactionType" required onchange="toggleReceiverField()">
@@ -134,25 +98,52 @@
 
             <div id="receiverFields" style="display: none;">
                 <label for="receiverUserId">Receiver Email ID:</label>
-                <input type="text" id="receiverUserId" name="receiverUserId" placeholder="Enter receiver's account number" onblur="fetchReceiverAccount()">
-
-                <div id="receiverAccountInfo" style="display: none;" class="account-info">
-                    <p><strong>Receiver Account:</strong> <span id="receiverAccountDisplay"></span></p>
+                <input type="text" id="receiverUserId" name="receiverUserId" placeholder="Enter receiver's email ID">
+                
+                <input type="submit" name="action" value="Verify Receiver" formaction="${pageContext.request.contextPath}/GetReceiverAccountServlet">
+                
+                <% 
+                String receiverAccount = (String) sessionObj.getAttribute("receiverAccount");
+                String receiverStatus = (String) sessionObj.getAttribute("receiverStatus");
+                
+                if (receiverStatus != null && receiverStatus.equals("FOUND") && receiverAccount != null) { 
+                %>
+                <div id="receiverInfo" class="account-info">
+                    <p><strong>Receiver Account:</strong> <%= receiverAccount %></p>
+                    <input type="hidden" name="receiverAccount" value="<%= receiverAccount %>">
                 </div>
-
-                <input type="hidden" id="receiverAccount" name="receiverAccount">
+                <% 
+                } else if (receiverStatus != null && receiverStatus.equals("NOT_FOUND")) { 
+                %>
+                <div class="message">Receiver account not found. Please check the email ID.</div>
+                <% 
+                }
+                %>
             </div>
 
             <label for="amount">Transaction Amount ($):</label>
             <input type="text" id="amount" name="amount" placeholder="Enter amount" required>
 
-            <input type="submit" value="Submit Transaction">
+            <input type="submit" name="action" value="Submit Transaction">
         </form>
 
         <a href="customer.jsp" class="link">Back to Home</a>
 
         <script>
             toggleReceiverField();
+            
+            // If transaction type was previously selected, restore it
+            <% String prevType = request.getParameter("transactionType"); 
+               if (prevType != null && !prevType.isEmpty()) { %>
+               document.getElementById("transactionType").value = "<%= prevType %>";
+               toggleReceiverField();
+            <% } %>
+            
+            // If receiver email was previously entered, restore it
+            <% String prevReceiver = request.getParameter("receiverUserId"); 
+               if (prevReceiver != null && !prevReceiver.isEmpty()) { %>
+               document.getElementById("receiverUserId").value = "<%= prevReceiver %>";
+            <% } %>
         </script>
 
         <%
